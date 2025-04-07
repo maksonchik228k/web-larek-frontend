@@ -1,4 +1,4 @@
-import { EventEmitter } from './components/base/Events';
+import { EventEmitter } from './components/base/events';
 import './scss/styles.scss';
 import { API_URL, CDN_URL } from './utils/constants';
 import { Card } from './components/Card';
@@ -86,7 +86,6 @@ function showProductPreview(product: IProduct): void {
 	modal.render({
 		content: card.render(product),
 	});
-	events.emit(Events.MODAL_OPEN, product);
 }
 
 function handleCardAdd(product: IProduct): void {

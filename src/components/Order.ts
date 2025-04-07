@@ -1,6 +1,6 @@
 import { Events, IFormState, IPaymentAndAddressForm, PaymentMethod } from '../types';
 import { ensureAllElements, ensureElement } from '../utils/utils';
-import { IEvents } from './base/Events';
+import { IEvents } from './base/events';
 import { Form } from './common/Form';
 
 export class Order extends Form<IPaymentAndAddressForm> {
