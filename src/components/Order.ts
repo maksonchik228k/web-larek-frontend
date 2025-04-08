@@ -4,79 +4,70 @@ import { IEvents } from './base/events';
 import { Form } from './common/Form';
 
 export class Order extends Form<IPaymentAndAddressForm> {
-	protected _alts: HTMLButtonElement[];
-	protected _card: HTMLButtonElement;
-	protected _cash: HTMLButtonElement;
-	protected _next: HTMLButtonElement;
-	protected _address: HTMLInputElement;
+    protected _paymentButtons: HTMLButtonElement[];
+    protected _submitButton: HTMLButtonElement;
+    protected _addressInput: HTMLInputElement;
+    private _selectedPayment: PaymentMethod | null = null;
 
-	private isChoosen = false;
+    constructor(container: HTMLFormElement, events: IEvents) {
+        super(container, events);
 
-	constructor(container: HTMLFormElement, events: IEvents) {
-		super(container, events);
+        this._paymentButtons = ensureAllElements<HTMLButtonElement>('.button_alt', container);
+        this._submitButton = ensureElement<HTMLButtonElement>('.order__button', container);
+        this._addressInput = ensureElement<HTMLInputElement>('input[name="address"]', container);
 
-		this._alts = ensureAllElements<HTMLButtonElement>('.button_alt', container);
-		this._next = this.container.querySelector('button.order__button');
-		this._card = ensureElement<HTMLButtonElement>(
-			'button[name=card]',
-			container
-		);
-		this._cash = ensureElement<HTMLButtonElement>(
-			'button[name=cash]',
-			container
-		);
-		this._address = this.container.querySelector('input[name="address"]');
+        // Инициализация состояния кнопки
+        this.setDisabled(this._submitButton, true);
 
-		this._alts.forEach((tab) => {
-			tab.addEventListener('click', () => {
-				this.isChoosen = true;
-				this.checkAddress()
-					? this._next.removeAttribute('disabled')
-					: this._next.setAttribute('disabled', '');
-				if (this._card == tab) {
-					this._card.classList.add('button_alt-active');
-					this._cash.classList.remove('button_alt-active');
-				} else {
-					this._cash.classList.add('button_alt-active');
-					this._card.classList.remove('button_alt-active');
-				}
-			});
-		});
+        // Обработка выбора способа оплаты
+        this._paymentButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                this._selectedPayment = button.name === 'card' ? PaymentMethod.ONLINE : PaymentMethod.CARD;
+                this._paymentButtons.forEach(btn => {
+                    btn.classList.toggle('button_alt-active', btn === button);
+                });
+                this.validateForm();
+            });
+        });
 
-		this._address.addEventListener('input', () => {
-			this.checkAddress()
-				? this._next.removeAttribute('disabled')
-				: this._next.setAttribute('disabled', '');
-		});
+        // Обработка ввода адреса
+        this._addressInput.addEventListener('input', () => {
+            this.validateForm();
+        });
 
-		this._next.addEventListener('click', () => {
-			const order: IPaymentAndAddressForm = {
-				address: this._address.value,
-				paymentType: this._card.classList.contains('button_alt-active')
-					? PaymentMethod.ONLINE
-					: PaymentMethod.CARD,
-			};
-			events.emit(Events.CONTACTS_OPEN, order);
-			this.clearForm();
-		});
-	}
+        // Обработка отправки формы
+        this.container.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (this.isFormValid()) {
+                this.events.emit(Events.ORDER_SUBMIT, {
+                    payment: this._selectedPayment,
+                    address: this._addressInput.value
+                });
+            }
+        });
+    }
 
-	set address(address: string) {
-		this._address.value = address;
-	}
-	
-	private clearForm() {
-		this._card.classList.remove('button_alt-active');
-		this._cash.classList.remove('button_alt-active');
-		this._next.setAttribute('disabled', '');
-	}
+    private isFormValid(): boolean {
+        return !!this._selectedPayment && this._addressInput.value.trim() !== '';
+    }
 
-	checkAddress() {
-		return this._address.value != '' && this.isChoosen;
-	}
+    private validateForm(): void {
+        const isValid = this.isFormValid();
+        this.setDisabled(this._submitButton, !isValid);
+    }
 
-	render(state: IPaymentAndAddressForm & IFormState) {
-		this.clearForm();
-		return super.render(state);
-	}
+    set address(value: string) {
+        this._addressInput.value = value;
+        this.validateForm();
+    }
+
+    set payment(value: PaymentMethod) {
+        const buttonName = value === PaymentMethod.ONLINE ? 'card' : 'cash';
+        const button = this._paymentButtons.find(b => b.name === buttonName);
+        if (button) button.click();
+    }
+
+    set valid(value: boolean) {
+        this.setDisabled(this._submitButton, !value);
+    }
 }

@@ -11,23 +11,23 @@ import { WebLarekAPI } from './components/WebLarekAPI';
 import { Page } from './components/Page';
 import { AppData } from './components/AppData';
 import {
-	Events,
-	IPaymentAndAddressForm,
-	IPaymentPhoneAndEmailForm,
-	IProduct,
-	PaymentMethod,
+    Events,
+    IPaymentAndAddressForm,
+    IPaymentPhoneAndEmailForm,
+    IProduct,
+    PaymentMethod,
 } from './types';
 import { Contacts } from './components/Contacts';
 import { BasketCard } from './components/BasketCard';
 
 const Templates = {
-	CATALOG: ensureElement<HTMLTemplateElement>('#card-catalog'),
-	PREVIEW: ensureElement<HTMLTemplateElement>('#card-preview'),
-	CONTACTS: ensureElement<HTMLTemplateElement>('#contacts'),
-	SUCCESS: ensureElement<HTMLTemplateElement>('#success'),
-	CARDBASKET: ensureElement<HTMLTemplateElement>('#card-basket'),
-	ORDER: ensureElement<HTMLTemplateElement>('#order'),
-	BASKET: ensureElement<HTMLTemplateElement>('#basket'),
+    CATALOG: ensureElement<HTMLTemplateElement>('#card-catalog'),
+    PREVIEW: ensureElement<HTMLTemplateElement>('#card-preview'),
+    CONTACTS: ensureElement<HTMLTemplateElement>('#contacts'),
+    SUCCESS: ensureElement<HTMLTemplateElement>('#success'),
+    CARDBASKET: ensureElement<HTMLTemplateElement>('#card-basket'),
+    ORDER: ensureElement<HTMLTemplateElement>('#order'),
+    BASKET: ensureElement<HTMLTemplateElement>('#basket'),
 };
 
 const api = new WebLarekAPI(CDN_URL, API_URL);
@@ -39,138 +39,145 @@ const basket = new Basket(cloneTemplate(Templates.BASKET), events);
 const order = new Order(cloneTemplate(Templates.ORDER), events);
 const contacts = new Contacts(cloneTemplate(Templates.CONTACTS), events);
 
-api.getProducts().then(appData.setProducts.bind(appData)).catch(alert);
+// Загрузка товаров
+api.getProducts()
+    .then(appData.setProducts.bind(appData))
+    .catch(console.error);
 
-events.on(Events.CATALOG_CHANGED, renderCatalog);
-events.on(Events.CATALOG_SHOW, showProductPreview);
-events.on(Events.CARD_ADD, handleCardAdd);
-events.on(Events.CARD_DELETE, handleCardDelete);
-events.on(Events.BASKET_OPEN, openBasket);
-events.on(Events.ORDER_OPEN, openOrder);
-events.on(Events.ORDER_SUBMIT, submitOrder);
-events.on(Events.CONTACTS_OPEN, openContacts);
-events.on(Events.MODAL_OPEN, () => (page.locked = true));
-events.on(Events.MODAL_CLOSE, () => (page.locked = false));
+// Обработчики событий каталога
+events.on(Events.CATALOG_CHANGED, () => {
+    page.catalog = appData.products.map((product) =>
+        new Card(cloneTemplate(Templates.CATALOG), {
+            onClick: () => events.emit(Events.CATALOG_SHOW, product)
+        }).render(product)
+    );
+});
 
-function renderCatalog(): void {
-	page.catalog = appData.products.map((product) =>
-		new Card(cloneTemplate(Templates.CATALOG), {
-			onClick: () => {
-				events.emit(Events.CATALOG_SHOW, product);
-			},
-		}).render(product)
-	);
-}
+events.on(Events.CATALOG_SHOW, (product: IProduct) => {
+    const card = new Card(cloneTemplate(Templates.PREVIEW), {
+        onClick: () => {
+            if (appData.basket.includes(product.id)) {
+                events.emit(Events.BASKET_OPEN);
+            } else {
+                events.emit(Events.CARD_ADD, product);
+            }
+        }
+    });
 
-function showProductPreview(product: IProduct): void {
-	const card = new Card(cloneTemplate(Templates.PREVIEW), {
-		onClick: () => {
-			card.button = true;
-			card.addButoonAction({
-				onClick: () => {
-					events.emit(Events.BASKET_OPEN, product);
-				},
-			});
-			if (!appData.basket.includes(product.id)) {
-				events.emit(Events.CARD_ADD, product);
-			}
-		},
-	});
+    card.button = !appData.basket.includes(product.id);
+    modal.render({ content: card.render(product) });
+});
 
-	appData.basket.includes(product.id)
-		? card.addButoonAction({
-				onClick: () => events.emit(Events.BASKET_OPEN, product),
-		  })
-		: (card.button = false);
+// Обработчики корзины
+events.on(Events.CARD_ADD, (product: IProduct) => {
+    appData.addToBasket(product);
+});
 
-	modal.render({
-		content: card.render(product),
-	});
-}
+events.on(Events.CARD_DELETE, (product: IProduct) => {
+    appData.removeFromBasket(product.id);
+});
 
-function handleCardAdd(product: IProduct): void {
-	appData.basket.push(product.id);
-	appData.order.items.push(product.id);
-	page.counter = appData.getCountOfItems();
-}
+events.on(Events.BASKET_CHANGED, () => {
+    page.counter = appData.getCountOfItems();
+    basket.items = appData.getAddedProducts().map((product, index) => {
+        const card = new BasketCard(cloneTemplate(Templates.CARDBASKET), {
+            onClick: () => events.emit(Events.CARD_DELETE, product)
+        });
+        
+        // Сначала рендерим карточку с базовыми свойствами
+        const renderedCard = card.render({ 
+            title: product.title,
+            price: product.price,
+            index: (index + 1).toString()
+        });
+        
+        // Затем устанавливаем специфичные для BasketCard свойства
+        card.index = (index + 1).toString();
+        
+        return renderedCard;
+    });
+    basket.total = appData.getTotal();
+});
 
-function handleCardDelete(product: IProduct): void {
-	appData.basket = appData.basket.filter(
-		(basketItem) => basketItem !== product.id
-	);
-	appData.order.items = appData.order.items.filter(
-		(orderItem) => orderItem !== product.id
-	);
-	events.emit(Events.BASKET_OPEN);
-	page.counter = appData.getCountOfItems();
-}
+events.on(Events.BASKET_OPEN, () => {
+    modal.render({ content: basket.render() });
+});
 
-function openBasket(): void {
-	modal.render({
-		content: createElement<HTMLElement>('div', {}, basket.render()),
-	});
-	basket.total = appData.getTotal();
-	basket.items = appData.getAddedProducts().map((product, i) => {
-		const cardBasket = new BasketCard(cloneTemplate(Templates.CARDBASKET), {
-			onClick: () => events.emit(Events.CARD_DELETE, product),
-		});
-		cardBasket.index = (i + 1).toString();
-		return cardBasket.render({
-			title: product.title,
-			price: product.price,
-		});
-	});
+// Обработчики заказа
+events.on(Events.ORDER_INIT, () => {
+    modal.render({
+        content: order.render({
+            valid: false,
+            errors: [],
+            address: '',
+            payment: PaymentMethod.ONLINE
+        })
+    });
+});
 
-	appData.getCountOfItems() == 0
-		? basket.setButtonDisabled(true)
-		: basket.setButtonDisabled(false);
-}
+events.on(Events.ORDER_PAYMENT_CHANGE, (data: { payment: PaymentMethod }) => {
+    appData.setOrderField('payment', data.payment);
+    appData.validateOrder();
+});
 
-function openOrder(): void {
-	modal.render({
-		content: order.render({
-			valid: false,
-			errors: [],
-			address: '',
-			paymentType: PaymentMethod.ONLINE
-		}),
-	});
-}
+events.on(Events.ORDER_ADDRESS_CHANGE, (data: { address: string }) => {
+    appData.setOrderField('address', data.address);
+    appData.validateOrder();
+});
 
-function openContacts(data: IPaymentAndAddressForm): void {
-	Object.assign(appData.order, {
-		address: data.address,
-		payment: data.paymentType,
-	});
-	modal.render({
-		content: contacts.render({
-			valid: false,
-			errors: [],
-			email: '',
-			phone: '',
-		}),
-	});
-}
+events.on(Events.ORDER_VALIDATED, (data: { valid: boolean }) => {
+    order.valid = data.valid;
+});
 
-function submitOrder(data: IPaymentPhoneAndEmailForm): void {
-	Object.assign(appData.order, { ...data, total: appData.getTotal() });
+events.on(Events.ORDER_SUBMIT, (data: IPaymentAndAddressForm) => {
+    appData.setOrderField('address', data.address);
+    appData.setOrderField('payment', data.payment);
+    events.emit(Events.CONTACTS_OPEN);
+});
 
-	api.order(appData.order).then(() => {
-		appData.basket = [];
-		appData.order.items = [];
-		page.counter = 0;
+events.on(Events.CONTACTS_OPEN, () => {
+    modal.render({
+        content: contacts.render({
+            valid: false,
+            errors: [],
+            email: '',
+            phone: ''
+        })
+    });
+});
 
-		const success = new Success(cloneTemplate(Templates.SUCCESS), {
-			onClick: () => {
-				modal.close();
-				events.emit(Events.CATALOG_CHANGED);
-			},
-		});
+// Обработчики контактов
+events.on(Events.CONTACTS_UPDATE, (data: IPaymentPhoneAndEmailForm) => {
+    appData.validateContacts(data);
+});
 
-		modal.render({
-			content: success.render({ total: appData.order.total }),
-		});
+events.on(Events.CONTACTS_VALIDATED, (data: { valid: boolean, errors: string[] }) => {
+    contacts.valid = data.valid;
+    contacts.errors = data.errors.join(', ');
+});
 
-		appData.order.total = 0;
-	});
-}
+events.on(Events.CONTACTS_SUBMIT, () => {
+    appData.order.total = appData.getTotal();
+    api.order(appData.order)
+        .then(() => {
+            const success = new Success(cloneTemplate(Templates.SUCCESS), {
+                onClick: () => {
+                    modal.close();
+                    appData.clearBasket();
+                }
+            });
+            modal.render({
+                content: success.render({ total: appData.order.total })
+            });
+        })
+        .catch(console.error);
+});
+
+// Обработчики модального окна
+events.on(Events.MODAL_OPEN, () => {
+    page.locked = true;
+});
+
+events.on(Events.MODAL_CLOSE, () => {
+    page.locked = false;
+});

@@ -10,6 +10,7 @@ export interface ICardActions {
 export interface ICard<T> extends IProduct {
 	button: boolean;
 	onClick: () => void;
+	index?: string;
 }
 
 export class Card<T> extends Component<ICard<T>> {

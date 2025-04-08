@@ -36,7 +36,7 @@ export interface IFormState {
 
 export interface IPaymentAndAddressForm {
 	address: string;
-	paymentType: PaymentMethod;
+	payment: PaymentMethod;
 }
 
 export interface IPaymentPhoneAndEmailForm {
@@ -72,4 +72,13 @@ export enum Events {
 	CONTACTS_OPEN = 'contacts:open',
 	MODAL_OPEN = 'modal:open',
 	MODAL_CLOSE = 'modal:close',
+	CONTACTS_UPDATE = 'contacts:update',
+    CONTACTS_SUBMIT = 'contacts:submit',
+	BASKET_CHANGED = 'basket:changed',
+    CONTACTS_VALIDATED = 'contacts:validated',
+    ORDER_VALIDATED = 'order:validated',
+	ORDER_INIT = 'order:init',
+	ORDER_PAYMENT_CHANGE = 'order:payment:change',
+    ORDER_ADDRESS_CHANGE = 'order:address:change',
 }
+
